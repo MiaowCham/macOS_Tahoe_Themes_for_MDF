@@ -68,7 +68,7 @@ jobs:
       - name: Download icon
         id: download
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PAT }}
         run: |
           echo "开始检查图标链接..."
           # 获取响应头信息
@@ -89,15 +89,23 @@ jobs:
           }
           
           # 检查Content-Type并下载
-          if [[ $CONTENT_TYPE =~ ^image/ ]]; then
-            echo "检测到图片直链..."
-            download_file
-          elif [[ $CONTENT_TYPE =~ ^application/(octet-stream|download|binary|force-download)$ ]]; then
-            echo "检测到下载链接..."
+          if [[ $CONTENT_TYPE =~ ^image/ ]] || \
+             [[ $CONTENT_TYPE =~ ^application/(octet-stream|download|binary|force-download|x-download)$ ]] || \
+             [[ -z "$CONTENT_TYPE" ]]; then
+            echo "检测到有效下载链接..."
             download_file
           else
             echo "错误：不支持的 Content-Type: $CONTENT_TYPE"
             gh issue comment ${{ github.event.issue.number }} --body "❌ 无法识别的链接类型！请提供直接显示图片或可下载的图片链接。\n\n当前链接返回的 Content-Type: $CONTENT_TYPE"
+            gh issue close ${{ github.event.issue.number }}
+            exit 1
+          fi
+          
+          # 下载完成后检查文件类型
+          FILE_TYPE=$(file --mime-type downloaded_icon | awk '{print $NF}')
+          if [[ ! $FILE_TYPE =~ ^image/ ]]; then
+            echo "错误：下载的文件不是图片格式"
+            gh issue comment ${{ github.event.issue.number }} --body "❌ 下载的文件不是有效的图片格式！\n\n文件类型: $FILE_TYPE"
             gh issue close ${{ github.event.issue.number }}
             exit 1
           fi
