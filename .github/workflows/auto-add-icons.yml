@@ -71,9 +71,9 @@ jobs:
           GH_TOKEN: ${{ secrets.PAT }}
         run: |
           echo "开始检查图标链接..."
-          # 获取响应头信息
+          # 获取响应头信息并去除空格和回车
           HEADERS=$(curl -sI "${{ steps.issue.outputs.icon_url }}")
-          CONTENT_TYPE=$(echo "$HEADERS" | grep -i content-type | awk '{print $2}')
+          CONTENT_TYPE=$(echo "$HEADERS" | grep -i 'content-type:' | sed 's/.*: *//' | tr -d '\r\n')
           echo "链接返回的 Content-Type: $CONTENT_TYPE"
           
           # 下载文件的函数
@@ -88,15 +88,16 @@ jobs:
             fi
           }
           
+          # 允许的Content-Type列表
+          ALLOWED_TYPES="image/|application/octet-stream|application/download|application/binary|application/force-download|application/x-download"
+          
           # 检查Content-Type并下载
-          if [[ $CONTENT_TYPE =~ ^image/ ]] || \
-             [[ $CONTENT_TYPE =~ ^application/(octet-stream|download|binary|force-download|x-download)$ ]] || \
-             [[ -z "$CONTENT_TYPE" ]]; then
+          if echo "$CONTENT_TYPE" | grep -qE "^($ALLOWED_TYPES)"; then
             echo "检测到有效下载链接..."
             download_file
           else
             echo "错误：不支持的 Content-Type: $CONTENT_TYPE"
-            gh issue comment ${{ github.event.issue.number }} --body "❌ 无法识别的链接类型！请提供直接显示图片或可下载的图片链接。\n\n当前链接返回的 Content-Type: $CONTENT_TYPE"
+            gh issue comment ${{ github.event.issue.number }} --body "❌ 无法识别的链接类型！请提供直接显示图片或可下载的图片链接。当前链接返回的 Content-Type: $CONTENT_TYPE"
             gh issue close ${{ github.event.issue.number }}
             exit 1
           fi
@@ -105,7 +106,7 @@ jobs:
           FILE_TYPE=$(file --mime-type downloaded_icon | awk '{print $NF}')
           if [[ ! $FILE_TYPE =~ ^image/ ]]; then
             echo "错误：下载的文件不是图片格式"
-            gh issue comment ${{ github.event.issue.number }} --body "❌ 下载的文件不是有效的图片格式！\n\n文件类型: $FILE_TYPE"
+            gh issue comment ${{ github.event.issue.number }} --body "❌ 下载的文件不是有效的图片格式！文件类型: $FILE_TYPE"
             gh issue close ${{ github.event.issue.number }}
             exit 1
           fi
@@ -113,7 +114,7 @@ jobs:
           # 检查文件是否存在和大小
           if [ ! -f downloaded_icon ] || [ ! -s downloaded_icon ]; then
             echo "错误：文件下载失败或文件为空"
-            gh issue comment ${{ github.event.issue.number }} --body "❌ 无法获取图标，请检查链接可用性！\n\n可能的原因：\n- 链接已失效\n- 链接需要登录\n- 链接不是直接下载链接"
+            gh issue comment ${{ github.event.issue.number }} --body "❌ 无法获取图标，请检查链接可用性！可能的原因：链接已失效、链接需要登录、链接不是直接下载链接"
             gh issue close ${{ github.event.issue.number }}
             exit 1
           fi
@@ -197,7 +198,7 @@ jobs:
             --head auto-add-icons-${{ github.event.issue.number }}); then
             echo "PR创建失败，提供分支信息"
             BRANCH_URL="https://github.com/${{ github.repository }}/tree/auto-add-icons-${{ github.event.issue.number }}"
-            gh issue comment ${{ github.event.issue.number }} --body "⚠️ PR自动创建失败，但图标已成功上传。请管理员从以下分支手动创建PR：\n\n分支链接：$BRANCH_URL\n\n创建PR时请使用以下内容：\n\`\`\`\n$PR_BODY\n\`\`\`"
+            gh issue comment ${{ github.event.issue.number }} --body "⚠️ PR自动创建失败，但图标已成功上传。请管理员从以下分支手动创建PR：分支链接：$BRANCH_URL  创建PR时请使用以下内容： \`\`\`\n$PR_BODY\n\`\`\`"
             exit 0  # PR创建失败不视为错误，因为图标已经成功上传
           fi
           
@@ -218,5 +219,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.PAT }}
         run: |
-          gh issue comment ${{ github.event.issue.number }} --body "❌ 处理过程中出现错误，请检查 Actions 日志。\n\n如果图标已上传但PR创建失败，管理员可以在分支列表中找到对应分支：auto-add-icons-${{ github.event.issue.number }}"
+          gh issue comment ${{ github.event.issue.number }} --body "❌ 处理过程中出现错误，请检查 Actions 日志。如果图标已上传但PR创建失败，管理员可以在分支列表中找到对应分支：auto-add-icons-${{ github.event.issue.number }}"
           gh issue close ${{ github.event.issue.number }}
