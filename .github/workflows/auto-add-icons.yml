@@ -149,6 +149,7 @@ jobs:
           
           # 提取exe名称的基础部分（不含扩展名）并添加.png扩展名
           ICON_NAME=$(echo "${{ steps.issue.outputs.exe_name }}" | sed 's/\.exe$/.png/')
+          echo "图标名称：$ICON_NAME"
           
           mkdir -p $TARGET_DIR
           if ! mv downloaded_icon "$TARGET_DIR/$ICON_NAME"; then
@@ -177,13 +178,13 @@ jobs:
           GH_TOKEN: ${{ secrets.PAT }}
         run: |
           # 提取exe名称的基础部分（不含扩展名）
-          BASE_NAME=$(echo "${{ steps.issue.outputs.exe_name }}" | sed 's/\.exe$//')
           
           PR_BODY="issue编号：#${{ github.event.issue.number }}
           提交者：@${{ github.event.issue.user.login }}
 
           ### 基础信息：
           软件名称：\`${{ steps.issue.outputs.software_name }}\`
+          图标名称：\`${{ steps.issue.outputs.ICON_NAME}}\`
           图标类型：\`${{ steps.issue.outputs.icon_type }}\`
           原图直链：${{ steps.issue.outputs.icon_url }}
 

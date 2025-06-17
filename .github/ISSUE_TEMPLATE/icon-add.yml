@@ -11,7 +11,7 @@ body:
     attributes:
       label: 图标对应软件
       description: |
-        请尽量使用 "软件名称(实际程序名称.exe)" 格式填入  
+        请使用 "软件名称(实际程序名称.exe)" 格式填入  
         其中括号为英文半角括号，请不要在软件名称和括号间添加空格
     validations:
       required: true
