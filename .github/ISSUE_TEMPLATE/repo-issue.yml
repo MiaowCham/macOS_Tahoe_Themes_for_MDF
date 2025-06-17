@@ -1,0 +1,15 @@
+name: 其他建议
+description: 其他建议或问题反馈
+title: "[其他建议] "
+labels: ["repo-issue"]
+assignees:
+  - MiaowCham
+
+body:
+  - type: textarea
+    id: notes
+    attributes:
+      label: 内容
+      description: 你有什么建议或问题需要反馈？请详细描述，以便我们更好地理解和处理。
+    validations:
+      required: true

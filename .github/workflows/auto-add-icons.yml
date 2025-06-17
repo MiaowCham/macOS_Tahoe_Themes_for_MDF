@@ -1,0 +1,214 @@
+name: Auto Add Icons
+
+# 修改顶层权限配置
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+on:
+  issues:
+    types: [opened, edited]
+    labels: ["icon-add"]
+
+jobs:
+  process-icon:
+    if: contains(github.event.issue.labels.*.name, 'icon-add')
+    runs-on: ubuntu-latest
+    # 确保job级别也有正确的权限
+    permissions:
+      issues: write
+      contents: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.PAT }}  # 使用PAT进行checkout
+
+      - name: Get issue information
+        id: issue
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          # 使用 awk 提取每个部分的内容
+          SOFTWARE_NAME=$(echo "$ISSUE_BODY" | awk '/^### 图标对应软件/{flag=1;next}/^### /{flag=0}flag' | grep -v '^$' | head -n1)
+          ICON_URL=$(echo "$ISSUE_BODY" | awk '/^### 图标下载直链/{flag=1;next}/^### /{flag=0}flag' | grep -v '^$' | head -n1)
+          ICON_TYPE=$(echo "$ISSUE_BODY" | awk '/^### 图标类型/{flag=1;next}/^### /{flag=0}flag' | grep -v '^$' | head -n1)
+          NOTES=$(echo "$ISSUE_BODY" | awk '/^### 备注/{flag=1;next}/^### /{flag=0}flag' | grep -v '^$' | head -n1)
+          
+          # 从软件名称中提取exe名称
+          EXE_NAME=$(echo "$SOFTWARE_NAME" | grep -o '(.*\.exe)' | tr -d '()')
+          
+          echo "===== Issue 解析结果 ====="
+          echo "软件名称: $SOFTWARE_NAME"
+          echo "执行文件: $EXE_NAME"
+          echo "图标链接: $ICON_URL"
+          echo "图标类型: $ICON_TYPE"
+          echo "备注信息: $NOTES"
+          echo "======================="
+          
+          # 检查必要字段是否为空
+          if [ -z "$SOFTWARE_NAME" ] || [ -z "$ICON_URL" ] || [ -z "$ICON_TYPE" ]; then
+            echo "错误：必要信息缺失"
+            gh issue comment ${{ github.event.issue.number }} --body "Issue 格式不正确，请确保填写了所有必要信息！"
+            gh issue close ${{ github.event.issue.number }}
+            exit 1
+          fi
+          
+          # 输出到GITHUB_OUTPUT
+          {
+            echo "software_name=$SOFTWARE_NAME"
+            echo "icon_url=$ICON_URL"
+            echo "icon_type=$ICON_TYPE"
+            echo "notes=$NOTES"
+            echo "exe_name=$EXE_NAME"
+          } >> $GITHUB_OUTPUT
+
+      - name: Download icon
+        id: download
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "开始检查图标链接..."
+          # 获取响应头信息
+          HEADERS=$(curl -sI "${{ steps.issue.outputs.icon_url }}")
+          CONTENT_TYPE=$(echo "$HEADERS" | grep -i content-type | awk '{print $2}')
+          echo "链接返回的 Content-Type: $CONTENT_TYPE"
+          
+          # 下载文件的函数
+          download_file() {
+            echo "开始下载文件..."
+            if curl -f -L -o downloaded_icon "${{ steps.issue.outputs.icon_url }}"; then
+              echo "下载完成"
+              return 0
+            else
+              echo "下载失败"
+              return 1
+            fi
+          }
+          
+          # 检查Content-Type并下载
+          if [[ $CONTENT_TYPE =~ ^image/ ]]; then
+            echo "检测到图片直链..."
+            download_file
+          elif [[ $CONTENT_TYPE =~ ^application/(octet-stream|download|binary|force-download)$ ]]; then
+            echo "检测到下载链接..."
+            download_file
+          else
+            echo "错误：不支持的 Content-Type: $CONTENT_TYPE"
+            gh issue comment ${{ github.event.issue.number }} --body "❌ 无法识别的链接类型！请提供直接显示图片或可下载的图片链接。\n\n当前链接返回的 Content-Type: $CONTENT_TYPE"
+            gh issue close ${{ github.event.issue.number }}
+            exit 1
+          fi
+          
+          # 检查文件是否存在和大小
+          if [ ! -f downloaded_icon ] || [ ! -s downloaded_icon ]; then
+            echo "错误：文件下载失败或文件为空"
+            gh issue comment ${{ github.event.issue.number }} --body "❌ 无法获取图标，请检查链接可用性！\n\n可能的原因：\n- 链接已失效\n- 链接需要登录\n- 链接不是直接下载链接"
+            gh issue close ${{ github.event.issue.number }}
+            exit 1
+          fi
+          
+          echo "图标下载步骤完成"
+
+      - name: Create branch and move icon
+        id: create_branch
+        run: |
+          git config --global user.name 'GitHub Actions'
+          git config --global user.email 'actions@github.com'
+          
+          # 首先获取最新代码
+          git fetch origin
+          
+          BRANCH_NAME="auto-add-icons-${{ github.event.issue.number }}"
+          
+          # 检查分支是否已存在
+          if git ls-remote --heads origin $BRANCH_NAME | grep -q $BRANCH_NAME; then
+            echo "分支已存在，正在删除..."
+            git push origin --delete $BRANCH_NAME || true
+          fi
+          
+          # 基于最新的main分支创建新分支
+          git checkout -b $BRANCH_NAME origin/main
+          
+          if [[ "${{ steps.issue.outputs.icon_type }}" == *"暗色图标"* ]]; then
+            TARGET_DIR="icon/Dark"
+          else
+            TARGET_DIR="icon/Light"
+          fi
+          
+          # 提取exe名称的基础部分（不含扩展名）并添加.png扩展名
+          ICON_NAME=$(echo "${{ steps.issue.outputs.exe_name }}" | sed 's/\.exe$/.png/')
+          
+          mkdir -p $TARGET_DIR
+          if ! mv downloaded_icon "$TARGET_DIR/$ICON_NAME"; then
+            echo "移动文件失败"
+            gh issue comment ${{ github.event.issue.number }} --body "❌ 无法移动下载的图标文件"
+            gh issue close ${{ github.event.issue.number }}
+            exit 1
+          fi
+          
+          git add "$TARGET_DIR/$ICON_NAME"
+          git commit -m "Add icon for ${{ steps.issue.outputs.software_name }}"
+          
+          # 使用强制推送确保更新
+          if ! git push -f origin $BRANCH_NAME; then
+            echo "推送分支失败"
+            gh issue comment ${{ github.event.issue.number }} --body "❌ 无法推送到远程分支，请联系管理员处理"
+            gh issue close ${{ github.event.issue.number }}
+            exit 1
+          fi
+
+      - name: Create Pull Request
+        id: create_pr
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.PAT }}
+          GH_TOKEN: ${{ secrets.PAT }}
+        run: |
+          # 提取exe名称的基础部分（不含扩展名）
+          BASE_NAME=$(echo "${{ steps.issue.outputs.exe_name }}" | sed 's/\.exe$//')
+          
+          PR_BODY="issue编号：#${{ github.event.issue.number }}
+          提交者：@${{ github.event.issue.user.login }}
+
+          ### 基础信息：
+          软件名称：\`${{ steps.issue.outputs.software_name }}\`
+          图标类型：\`${{ steps.issue.outputs.icon_type }}\`
+          原图直链：${{ steps.issue.outputs.icon_url }}
+
+          ### 备注信息：
+          ${{ steps.issue.outputs.notes }}"
+          
+          # 尝试创建PR
+          if ! PR_URL=$(gh pr create \
+            --title "${{ github.event.issue.title }}" \
+            --body "$PR_BODY" \
+            --base main \
+            --head auto-add-icons-${{ github.event.issue.number }}); then
+            echo "PR创建失败，提供分支信息"
+            BRANCH_URL="https://github.com/${{ github.repository }}/tree/auto-add-icons-${{ github.event.issue.number }}"
+            gh issue comment ${{ github.event.issue.number }} --body "⚠️ PR自动创建失败，但图标已成功上传。请管理员从以下分支手动创建PR：\n\n分支链接：$BRANCH_URL\n\n创建PR时请使用以下内容：\n\`\`\`\n$PR_BODY\n\`\`\`"
+            exit 0  # PR创建失败不视为错误，因为图标已经成功上传
+          fi
+          
+          echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
+
+      - name: Close issue
+        if: success() && (steps.create_pr.outcome == 'success' || steps.create_pr.conclusion == 'success')
+        env:
+          GH_TOKEN: ${{ secrets.PAT }}
+        run: |
+          if [ -n "${{ steps.create_pr.outputs.pr_url }}" ]; then
+            gh issue comment ${{ github.event.issue.number }} --body "✅ 已成功获取图标并提交PR：${{ steps.create_pr.outputs.pr_url }}"
+          fi
+          gh issue close ${{ github.event.issue.number }}
+
+      - name: Handle Failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.PAT }}
+        run: |
+          gh issue comment ${{ github.event.issue.number }} --body "❌ 处理过程中出现错误，请检查 Actions 日志。\n\n如果图标已上传但PR创建失败，管理员可以在分支列表中找到对应分支：auto-add-icons-${{ github.event.issue.number }}"
+          gh issue close ${{ github.event.issue.number }}

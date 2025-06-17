@@ -1,0 +1,48 @@
+name: 贡献图标
+description: 为该仓库贡献图标
+title: "[图标贡献] "
+labels: ["icon-add"]
+assignees:
+  - MiaowCham
+
+body:
+  - type: input
+    id: software-name
+    attributes:
+      label: 图标对应软件
+      description: |
+        请尽量使用 "软件名称(实际程序名称.exe)" 格式填入  
+        其中括号为英文半角括号，请不要在软件名称和括号间添加空格
+    validations:
+      required: true
+
+  - type: input
+    id: icon-url
+    attributes:
+      label: 图标下载直链
+      description: |
+        请确保您提交的图标使用以下规范：  
+        图片分辨率：256x256，实际图标大小：不超过216x216，名称为 "实际程序名称.png"  
+        亮色图标：尽量使用官方图标。若官方图标没有圆角矩形背景，请自行添加  
+        暗色图标：背景使用 ./macOS Tahoe 26/icons/Dark/Custom.png，主体使用原图标主题色
+    validations:
+      required: true
+
+  - type: dropdown
+    id: icon-type
+    attributes:
+      label: 图标类型
+      description: 请正确选择图标类型
+      options:
+        - 亮色图标
+        - 暗色图标
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: 备注
+      description: 其他需要说明的内容
+    validations:
+      required: false

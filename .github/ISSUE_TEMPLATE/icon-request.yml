@@ -1,0 +1,23 @@
+name: 图标请求
+description: 希望能制作该软件的图标
+title: "[图标请求] "
+labels: ["icon-request"]
+assignees:
+  - MiaowCham
+
+body:
+  - type: input
+    id: app-name
+    attributes:
+      label: 应用名称
+      description: 应用必须满足图标为"背景+图标"的类型。像游戏图标那种全屏图标没法适配
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: 备注
+      description: 关于这个应用的更多信息，可以包含应用官网、下载地址或其他相关链接。如果能提供高清图标、分层图标或SVG图标会优先制作
+    validations:
+      required: false
