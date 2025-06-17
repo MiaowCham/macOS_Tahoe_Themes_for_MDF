@@ -150,6 +150,7 @@ jobs:
           # 提取exe名称的基础部分（不含扩展名）并添加.png扩展名
           ICON_NAME=$(echo "${{ steps.issue.outputs.exe_name }}" | sed 's/\.exe$/.png/')
           echo "图标名称：$ICON_NAME"
+          echo "icon_name=$ICON_NAME" >> $GITHUB_OUTPUT
           
           mkdir -p $TARGET_DIR
           if ! mv downloaded_icon "$TARGET_DIR/$ICON_NAME"; then
