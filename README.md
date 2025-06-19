@@ -1,6 +1,6 @@
 # macOS Tahoe Themes for MDF
 基于 macOS Tahoe 26，为 **MyDockFinder** 制作的 Liquid Glass 风格图标和主题  
-如果你希望加入该项目，可以选择 **将您的图标加入 icon 文件夹并提交 PR！**  
+如果你希望加入该项目，可以选择 **将您的图标加入 icon 文件夹并提交 PR，或者根据模板创建 issues**  
 若有问题请直接联系 [@MiaowCham](https://github.com/MiaowCham/)
 ## 文件结构
 ```
